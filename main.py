@@ -8,6 +8,7 @@ CONFIG_FILE = "config.json"
 
 storage_client = None
 
+
 def get_storage_client(aws_access_key_id, aws_secret_access_key):
     global storage_client
     if storage_client is not None:
@@ -17,7 +18,8 @@ def get_storage_client(aws_access_key_id, aws_secret_access_key):
                                   aws_access_key_id=aws_access_key_id,
                                   aws_secret_access_key=aws_secret_access_key,
                                   endpoint_url='https://storage.yandexcloud.net',
-                                  region_name='ru-central1')
+                                  region_name='ru-central1',
+                                  )
     return storage_client
 
 
@@ -46,20 +48,80 @@ def init():
 
 
 def upload_photos(album, path=".", **kwargs):
-    print(album)
-    print(path)
+    file_list = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))
+                 and f.lower().endswith(('.jpg', '.jpeg'))]
+    if len(file_list) == 0:
+        print("Error: Фотографии не найдены")
+        exit(1)
+    for file in file_list:
+        try:
+            storage_client.upload_file(Bucket=BUCKET,
+                                  Key=album + '/' +file,
+                                  Filename =path + '/' + file)
+        except Exception as e:
+            print(f"File: {file}, error: {e}")
+            continue
 
 
-def download_photos(album, photos_dir=".", **kwargs):
-    # Загрузка фотографий из облачного хранилища
-    # (используйте boto3 для загрузки фотографий из вашего бакета)
+def download_photos(album, path=".", **kwargs):
+    response = storage_client.list_objects_v2(Bucket=BUCKET, Prefix=album)
+    if 'Contents' not in response:
+        print(f"Альбом '{album}' не найден в бакете '{BUCKET}'.")
+        return
+    for obj in response['Contents']:
+        key = obj['Key']
+        if key.endswith('/'):
+            continue  # Пропускаем папки внутри бакета
+
+        file_name = os.path.basename(key)
+        local_path = os.path.join(path, file_name)
+
+        try:
+            storage_client.download_file(BUCKET, key, local_path)
+            print(f"Файл '{file_name}' успешно скачан в '{local_path}'.")
+        except Exception as e:
+            print(f"Ошибка при скачивании файла '{file_name}': {e}")
+
     pass
 
 
 def list_albums(album=None, **kwargs):
-    # Просмотр списка альбомов и фотографий в альбоме
-    # (используйте boto3 для получения списка объектов в вашем бакете)
-    pass
+    if album:
+        prefix = album + '/'
+    else:
+        prefix = ""
+
+        # Получаем список объектов (файлов и папок) в бакете
+    response = storage_client.list_objects_v2(Bucket=BUCKET, Prefix=prefix, Delimiter='/')
+    if not album:
+        if 'CommonPrefixes' in response:
+            print("Список альбомов:")
+            for common_prefix in response['CommonPrefixes']:
+                album_name = common_prefix['Prefix'][:-1]
+                print(album_name)
+        else:
+            print("Ошибка: Отсутствуют альбомы")
+            exit(1)
+
+    elif album:
+        print(f"Список файлов в альбоме '{album}':")
+        if not response.get('Contents'):
+            print("Ошибка: Альбом отсутствует")
+            exit(1)
+        file_names = []
+        for obj in response['Contents']:
+            key = obj['Key']
+            if key.endswith('/'):
+                continue  # Пропускаем папки внутри бакета
+
+            file_name = os.path.basename(key)
+            file_names.append(file_name)
+        if len(file_names) == 0:
+            print("Ошибка: Отсутствуют файлы")
+            exit(1)
+        else:
+            for file in file_names:
+                print(file)
 
 
 def delete(album, photo=None, **kwargs):
@@ -69,6 +131,7 @@ def delete(album, photo=None, **kwargs):
 
 
 if __name__ == "__main__":
+    global BUCKET
     parser = argparse.ArgumentParser(description="Manage cloud photo storage.")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -112,6 +175,7 @@ if __name__ == "__main__":
         # Загрузка конфигурации
         with open(CONFIG_FILE, "r") as config_file:
             config = json.load(config_file)
-        get_storage_client()
+        get_storage_client(config['aws_access_key_id'], config['aws_secret_access_key'])
+        BUCKET = config['bucket']
         # Выполнение соответствующей команды
         args.func(**vars(args), **config)
