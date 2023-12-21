@@ -3,6 +3,7 @@ import boto3
 import argparse
 import json
 import configparser
+from sys import exit
 
 CONFIG_FILE = "cloudphoto.ini"
 INI_PARAM_TYPE_NAME = "DEFAULT"
