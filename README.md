@@ -6,3 +6,4 @@
 * `pip install -r requirements.txt`
 * `pyinstaller --onefile -n cloudphoto main.py`
 * исполняемый файл будет хранится в папке dist
+* помощь - `./cloudphoto -h`
