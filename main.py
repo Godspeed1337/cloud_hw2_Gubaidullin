@@ -5,10 +5,20 @@ import json
 import configparser
 from sys import exit
 
-CONFIG_FILE = "cloudphoto.ini"
+
+CONFIG_DIR = os.path.expanduser("~/.config/cloudphoto/cloudphotorc")
+CONFIG_FILE = os.path.join(CONFIG_DIR, "cloudphoto.ini")
+
+
+
 INI_PARAM_TYPE_NAME = "DEFAULT"
 
 storage_client = None
+
+
+def create_config_dir():
+    if not os.path.exists(CONFIG_DIR):
+        os.makedirs(CONFIG_DIR)
 
 
 def get_storage_client(aws_access_key_id, aws_secret_access_key, endpoint_url, region_name):
@@ -35,6 +45,9 @@ def write_to_ini_file(aws_access_key_id, aws_secret_access_key, bucket_name, fil
         "region_name": "ru-central1",
         "endpoint_url": "https://storage.yandexcloud.net",
     }
+
+    create_config_dir()
+
     with open(file_name, "w") as conf_file:
         ini_config.write(conf_file)
 
